@@ -1,0 +1,103 @@
+version: "3.7"
+services:
+  entrepreneur-stack-app:
+    build:
+      args:
+        user: entrepreneur-stack
+        uid: 1000
+      context: ./
+      dockerfile: ./Dockerfile
+    image: entrepreneur-stack-backend
+    container_name: entrepreneur-stack-backend
+    restart: unless-stopped
+    env_file: ./.env
+    environment:
+      APP_ENV: ${APP_ENV}
+    working_dir: /var/www/
+    volumes:
+      - ./:/var/www
+    networks:
+      - machine-entrepreneur-stack
+
+  db:
+    image: mysql
+    container_name: entrepreneur-stack-mysql
+    restart: always
+    env_file: ./.env
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - ${DATA_PATH_HOST}/mysql:/var/lib/mysql
+      - ${MYSQL_ENTRYPOINT_INITDB}:/docker-entrypoint-initdb.d
+    ports:
+      - "9021:3306"
+    networks:
+      - machine-entrepreneur-stack
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: entrepreneur-stack-pmadmin
+    restart: always
+    env_file: ./.env
+    environment:
+      # PMA_HOST: db
+      # PMA_USER: root
+      # PMA_PASSWORD: root
+      PMA_ARBITRARY: 1
+      MYSQL_USER: ${PMA_USER}
+      MYSQL_PASSWORD: ${PMA_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${PMA_ROOT_PASSWORD}
+      MAX_EXECUTION_TIME: ${PMA_MAX_EXECUTION_TIME}
+      MEMORY_LIMIT: ${PMA_MEMORY_LIMIT}
+      UPLOAD_LIMIT: ${PMA_UPLOAD_LIMIT}
+    ports:
+      - "9020:80"
+    depends_on:
+      - "${PMA_DB_ENGINE}"
+    networks:
+      - machine-entrepreneur-stack
+
+  nginx:
+    image: nginx:1.17-alpine
+    container_name: entrepreneur-stack-nginx
+    restart: unless-stopped
+    ports:
+      - 9019:80
+    depends_on:
+      - entrepreneur-stack-app
+    volumes:
+      - ./:/var/www
+      - ./docker-compose/nginx:/etc/nginx/conf.d
+    networks:
+      - machine-entrepreneur-stack
+
+  worker-parse:
+    image: entrepreneur-stack-backend
+    container_name: entrepreneur-stack-worker-parse
+    restart: unless-stopped
+    entrypoint: "php artisan queue:work --sleep=3 --tries=3"
+    volumes:
+      - ./:/var/www
+    networks:
+      - machine-entrepreneur-stack
+
+  schedule-parse:
+    image: entrepreneur-stack-backend
+    container_name: entrepreneur-stack-schedule-parse
+    restart: unless-stopped
+    entrypoint: "php artisan schedule:work"
+    volumes:
+      - ./:/var/www
+    networks:
+      - machine-entrepreneur-stack
+
+volumes:
+  mysql:
+    driver: local
+
+networks:
+  machine-entrepreneur-stack:
+    driver: bridge

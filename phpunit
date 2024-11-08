@@ -1,0 +1,6 @@
+#!/bin/bash
+
+args="$@"
+command="vendor/bin/phpunit $args"
+echo "$command"
+docker exec -it entrepreneur-stack-app bash -c "entrepreneur-stack-app /bin/bash -c \"$command\""
